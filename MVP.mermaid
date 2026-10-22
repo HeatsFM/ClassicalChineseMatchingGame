@@ -1,0 +1,56 @@
+flowchart TB
+    START([启动应用]) --> LIST[题库选择页<br/>展示 3 套题库卡片]
+
+    %% ===== 核心功能模块 =====
+    LIST -->|选择题库| CORE[核心功能]
+
+    subgraph QUIZ["题库系统"]
+        Q1[一词多义]
+        Q2[通假字]
+        Q3[古今异义]
+    end
+
+    subgraph GAME["连连看玩法"]
+        G1[例句列<br/>左侧打乱]
+        G2[释义列<br/>右侧打乱]
+        G3[点选配对]<-->G4{左右各选一张}
+    end
+
+    subgraph FEEDBACK["反馈系统"]
+        F1[✔ 匹配正确<br/>绿色高亮并消除]
+        F2[✘ 匹配错误<br/>卡片抖动 + 给出正确释义]
+    end
+
+    subgraph PROGRESS["进度追踪 + 成就"]
+        P1[答对 / 答错统计]
+        P2[掌握率 / 得分]
+        P3[解锁徽章]
+        P4[错题重练]
+    end
+
+    LIST --> QUIZ
+    QUIZ --> GAME
+    G1 --> G3
+    G2 --> G3
+    G4 -->|配对正确| F1
+    G4 -->|配对错误| F2
+    F1 --> PROGRESS
+    F2 --> PROGRESS
+
+    %% ===== 交互主流程 =====
+    PROGRESS --> END{全部消除?}
+    END -->|否| G3
+    END -->|是| RESULT[结算弹窗<br/>得分·用时·成就]
+    RESULT --> RETRY{是否重练?}
+
+    subgraph LOOP["重练循环"]
+        LOOP1[错题重练<br/>再玩当前题库]
+    end
+
+    RETRY -->|是| LOOP1
+    LOOP1 --> GAME
+    RETRY -->|否，再来一局| RESULT
+    RETRY -->|否，返回题库| LIST
+
+    %% ===== MVP 边界（不做） =====
+    BOUNDARY[边界：<br/>不做账号/多人/自定义题库/付费] -.限定.-> LIST

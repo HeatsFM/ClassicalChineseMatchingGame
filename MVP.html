@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文言文连连看</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  :root {
+    --ink: #2b2b2b;
+    --paper: #f7f3e8;
+    --card: #fffdf7;
+    --accent: #8a5a2b;
+    --accent-light: #c9a35f;
+    --green: #3a9d5b;
+    --red: #c0392b;
+    --shadow: 0 4px 14px rgba(0,0,0,0.12);
+    --radius: 12px;
+  }
+  body {
+    font-family: "KaiTi", "STKaiti", "SimSun", serif;
+    background: linear-gradient(160deg, #efe6d2 0%, #e7d8bc 100%);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  header {
+    width: 100%;
+    text-align: center;
+    padding: 22px 16px 8px;
+    border-bottom: 2px solid var(--accent-light);
+  }
+  header h1 {
+    font-size: 34px;
+    letter-spacing: 6px;
+    color: var(--accent);
+    text-shadow: 1px 1px 0 rgba(255,255,255,0.6);
+  }
+  header p {
+    margin-top: 4px;
+    color: #6b5b45;
+    font-size: 14px;
+  }
+
+  main {
+    width: 100%;
+    max-width: 960px;
+    padding: 20px 16px 40px;
+  }
+
+  /* ---------- 页面切换 ---------- */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ---------- 题库选择页 ---------- */
+  .deck-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 18px;
+    margin-top: 20px;
+  }
+  .deck-card {
+    background: var(--card);
+    border: 2px solid var(--accent-light);
+    border-radius: var(--radius);
+    padding: 26px 20px;
+    text-align: center;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: transform .15s, box-shadow .15s;
+  }
+  .deck-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 22px rgba(0,0,0,0.18);
+  }
+  .deck-card h2 { color: var(--accent); font-size: 24px; margin-bottom: 8px; }
+  .deck-card p { color: #6b5b45; font-size: 13px; line-height: 1.6; }
+  .deck-card .badge {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 4px 12px;
+    background: var(--accent-light);
+    color: #fff;
+    font-size: 12px;
+    border-radius: 20px;
+  }
+
+  /* ---------- 游戏页 ---------- */
+  .header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .header-bar .title { font-size: 20px; color: var(--accent); }
+  .stats {
+    display: flex;
+    gap: 14px;
+    font-size: 14px;
+    background: var(--card);
+    padding: 8px 14px;
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+  }
+  .stats b { color: var(--accent); }
+  .btn {
+    font-family: inherit;
+    cursor: pointer;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 14px;
+    transition: background .15s;
+  }
+  .btn:hover { background: #70491f; }
+  .btn.ghost { background: transparent; color: var(--accent); border: 2px solid var(--accent); }
+  .btn.ghost:hover { background: rgba(138,90,43,0.08); }
+
+  .board {
+    display: flex;
+    gap: 18px;
+    margin-top: 8px;
+  }
+  .column {
+    flex: 1;
+    background: rgba(255,253,247,0.6);
+    border-radius: var(--radius);
+    padding: 14px;
+    border: 1px dashed var(--accent-light);
+  }
+  .column h3 {
+    text-align: center;
+    color: #6b5b45;
+    margin-bottom: 12px;
+    letter-spacing: 3px;
+    font-size: 16px;
+  }
+  .cards { display: flex; flex-direction: column; gap: 10px; }
+
+  .card {
+    background: var(--card);
+    border: 2px solid #d9c9a8;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 16px;
+    line-height: 1.5;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: transform .12s, border-color .12s, background .2s, opacity .35s;
+    position: relative;
+    user-select: none;
+  }
+  .card:hover { border-color: var(--accent-light); }
+  .card.selected { border-color: var(--accent); background: #f3e9d2; transform: scale(1.02); }
+  .card.matched { opacity: 0; border-color: var(--green); pointer-events: none; }
+  .card.wrong { border-color: var(--red); background: #fbe3e0; }
+  .card.shake { animation: shake .4s; border-color: var(--red); }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-7px); }
+    40% { transform: translateX(7px); }
+    60% { transform: translateX(-5px); }
+    80% { transform: translateX(5px); }
+  }
+  .card .hint {
+    display: block;
+    margin-top: 6px;
+    color: var(--green);
+    font-size: 13px;
+    border-top: 1px dashed #d9c9a8;
+    padding-top: 6px;
+  }
+
+  .empty-note { text-align: center; color: #a89a80; padding: 40px 0; font-size: 16px; }
+
+  /* ---------- 结算弹窗 ---------- */
+  .modal-mask {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+  .modal-mask.show { display: flex; }
+  .modal {
+    background: var(--paper);
+    border: 2px solid var(--accent-light);
+    border-radius: 16px;
+    padding: 30px 36px;
+    max-width: 420px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+  }
+  .modal h2 { color: var(--accent); margin-bottom: 16px; letter-spacing: 3px; }
+  .modal .result-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 4px;
+    border-bottom: 1px dashed #d9c9a8;
+    font-size: 16px;
+  }
+  .modal .result-row b { color: var(--accent); }
+  .modal .actions { margin-top: 22px; display: flex; flex-direction: column; gap: 10px; }
+
+  .toast {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #fff;
+    padding: 10px 22px;
+    border-radius: 24px;
+    font-size: 14px;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .3s;
+    z-index: 60;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>文言文连连看</h1>
+  <p>一词多义 · 通假字 · 古今异义 —— 点选左右卡片配对消除</p>
+</header>
+
+<main>
+  <!-- ===== 题库选择页 ===== -->
+  <section id="page-list" class="page active">
+    <div class="deck-grid" id="deck-grid"></div>
+  </section>
+
+  <!-- ===== 游戏页 ===== -->
+  <section id="page-game" class="page">
+    <div class="header-bar">
+      <button class="btn ghost" onclick="backToList()">← 返回题库</button>
+      <span class="title" id="game-title"></span>
+      <div class="stats">
+        <span>✔ <b id="stat-v">0</b></span>
+        <span>✘ <b id="stat-x">0</b></span>
+        <span>得分 <b id="stat-score">0</b></span>
+        <span>⏱ <b id="stat-time">00:00</b></span>
+      </div>
+    </div>
+    <div class="board">
+      <div class="column">
+        <h3>例句</h3>
+        <div class="cards" id="col-left"></div>
+      </div>
+      <div class="column">
+        <h3>释义</h3>
+        <div class="cards" id="col-right"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ===== 结算弹窗 ===== -->
+<div class="modal-mask" id="result-modal">
+  <div class="modal">
+    <h2>🎉 通关结算</h2>
+    <div class="result-row"><span>答对</span><b id="r-v">0</b></div>
+    <div class="result-row"><span>答错</span><b id="r-x">0</b></div>
+    <div class="result-row"><span>掌握率</span><b id="r-rate">0%</b></div>
+    <div class="result-row"><span>得分</span><b id="r-score">0</b></div>
+    <div class="result-row"><span>用时</span><b id="r-time">00:00</b></div>
+    <div class="result-row"><span>徽章</span><b id="r-badge">—</b></div>
+    <div class="actions">
+      <button class="btn" onclick="retryWrong()">错题重练</button>
+      <button class="btn ghost" onclick="replay()">再来一局</button>
+      <button class="btn ghost" onclick="backToList()">返回题库</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// =================== 题库数据 ===================
+const DATASETS = {
+  "one-word": {
+    name: "一词多义",
+    desc: "同一个字在句中含义不同，与正确释义配对。",
+    pairs: [
+      { q: "虎见之，庞然大物也，以为神。", a: "见：看见" },
+      { q: "故天将降大任于是人也。", a: "是：这，这个" },
+      { q: "此则岳阳楼之大观也。", a: "观：景象" },
+      { q: "辙生好为文，思之至深。", a: "为：写，作" },
+      { q: "惩山北之塞，出入之迂也。", a: "惩：苦于" },
+    ]
+  },
+  "tongjia": {
+    name: "通假字",
+    desc: "识别句中通假字并找到所通的本字。",
+    pairs: [
+      { q: "学而时习之，不亦说乎。", a: "说：同“悦”" },
+      { q: "满坐寂然，无敢哗者。", a: "坐：同“座”" },
+      { q: "河曲智叟亡以应。", a: "亡：同“无”" },
+      { q: "寒暑易节，始一反焉。", a: "反：同“返”" },
+      { q: "便要还家，设酒杀鸡作食。", a: "要：同“邀”" },
+    ]
+  },
+  "gujin": {
+    name: "古今异义",
+    desc: "词义在现代有了变化，匹配该词的古今含义。",
+    pairs: [
+      { q: "先帝不以臣卑鄙。", a: "卑鄙：身份低微" },
+      { q: "率妻子邑人来此绝境。", a: "妻子：妻和子女" },
+      { q: "由是感激，遂许先帝以驱驰。", a: "感激：感奋激发" },
+      { q: "舟已行矣，而剑不行。", a: "行：运行，前行" },
+      { q: "将军身被坚执锐。", a: "被：同“披”" },
+    ]
+  }
+};
+
+const BADGES = [
+  { id: "novice", name: "📜 初入门径", cond: s => s.v >= 1 },
+  { id: "star", name: "⭐ 博学多识", cond: s => s.v >= 8 },
+  { id: "master", name: "🏆 词义大师", cond: s => s.rate >= 0.9 && s.v >= 10 },
+  { id: "perfect", name: "💯 完美无缺", cond: s => s.x === 0 && s.done > 0 }
+];
+
+// =================== 状态 ===================
+let activeDeck = null;
+let items = [];          // { id, text, side }
+let matched = 0;
+let total = 0;
+let vCount = 0, xCount = 0;
+let score = 0;
+let pairHint = {};       // cardId -> 配对目标
+let wrongCards = [];
+let selected = null;     // 当前选中的左侧卡片
+let timerId = null;
+let startTime = 0;
+let earnedBadges = [];
+let mode = "full";       // full | retry
+let payload = { v: 0, x: 0, done: 0, rate: 0, score: 0, timeStr: "", badges: 0 };
+
+// =================== 工具 ===================
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove("show"), 1800);
+}
+
+// =================== 题库选择页 ===================
+function renderDecks() {
+  const grid = document.getElementById("deck-grid");
+  grid.innerHTML = "";
+  for (const key in DATASETS) {
+    const d = DATASETS[key];
+    const el = document.createElement("div");
+    el.className = "deck-card";
+    el.innerHTML = `<h2>${d.name}</h2><p>${d.desc}</p><span class="badge">${d.pairs.length} 组题目</span>`;
+    el.onclick = () => startGame(key, "full");
+    grid.appendChild(el);
+  }
+}
+
+// =================== 游戏初始化 ===================
+function startGame(deckKey, gameMode, wrongIds) {
+  activeDeck = deckKey;
+  mode = gameMode;
+  const deckPairs = DATASETS[deckKey];
+
+  // 选题：完整模式全部；重练模式只选错题
+  let pairs;
+  if (gameMode === "retry") {
+    const map = {};
+    deckPairs.pairs.forEach((p, i) => map[i] = p);
+    pairs = wrongIds.map(id => map[id]).filter(Boolean);
+    if (pairs.length === 0) { alert("当前没有可重练的错题"); return; }
+  } else {
+    pairs = deckPairs.pairs.slice(); // 保留 id -> 序号
+  }
+
+  total = pairs.length;
+  matched = 0;
+  vCount = 0; xCount = 0; score = 0;
+  selected = null;
+  pairHint = {};
+  wrongCards = [];
+
+  // 构建左右卡片
+  const left = pairs.map((p, i) => ({ id: "L" + i, origIdx: i, side: "L", text: p.q, pairId: i }));
+  const rightArr = pairs.map((p, i) => ({ id: "R" + i, origIdx: i, side: "R", text: p.a, pairId: i }));
+
+  items = shuffle(left).concat(shuffle(rightArr));
+  pairHint = {};
+  left.forEach(c => pairHint[c.id] = c.pairId);
+  for (let i = 0; i < rightArr.length; i++) pairHint[rightArr[i].id] = rightArr[i].pairId;
+
+  document.getElementById("game-title").textContent = deckPairs.name + (gameMode === "retry" ? " · 错题重练" : "");
+
+  // 计时
+  clearInterval(timerId);
+  startTime = Date.now();
+  timerId = setInterval(updateTimer, 500);
+  updateTimer();
+
+  // UI
+  showPage("page-game");
+  renderBoards();
+  document.getElementById("result-modal").classList.remove("show");
+}
+
+function renderBoards() {
+  const L = document.getElementById("col-left");
+  const R = document.getElementById("col-right");
+  L.innerHTML = "";
+  R.innerHTML = "";
+  const leftItems = items.filter(i => i.side === "L" && i.text);
+  const rightItems = items.filter(i => i.side === "R" && i.text);
+
+  leftItems.forEach(c => L.appendChild(makeCard(c)));
+  rightItems.forEach(c => R.appendChild(makeCard(c)));
+
+  if (leftItems.length === 0) {
+    L.innerHTML = '<div class="empty-note">例句已全部消除</div>';
+  } else if ((matched >= total) || (leftItems.length === 0)) {
+    finishGame();
+  } else {
+    // EMPTY
+  }
+  if (leftItems.length === 0 && matched < total) L.innerHTML = '<div class="empty-note">例句已全部消除</div>';
+}
+
+function hideCard(c) { c.text = null; }
+
+function makeCard(c) {
+  const el = document.createElement("div");
+  el.className = "card";
+  el.id = c.id;
+  el.textContent = c.text;
+  el.dataset.pairId = c.pairId;
+  el.dataset.side = c.side;
+  el.onclick = () => onCardClick(el);
+  return el;
+}
+
+// =================== 点选逻辑 ===================
+function onCardClick(el) {
+  if (el.classList.contains("matched")) return;
+
+  // 左侧卡片：切换选中
+  if (el.dataset.side === "L") {
+    if (selected === el) {
+      selected.classList.remove("selected");
+      selected = null;
+      return;
+    }
+    if (selected) selected.classList.remove("selected");
+    selected = el;
+    el.classList.add("selected");
+    return;
+  }
+
+  // 右侧卡片：需要先有左侧选中
+  if (el.dataset.side === "R") {
+    if (!selected) {
+      toast("请先在左侧选一张例句");
+      return;
+    }
+    resolvePair(selected, el);
+  }
+}
+
+function resolvePair(leftEl, rightEl) {
+  if (leftEl.dataset.pairId === rightEl.dataset.pairId) {
+    // 正确
+    vCount++;
+    score += 10;
+    leftEl.classList.remove("selected");
+    leftEl.classList.add("matched");
+    rightEl.classList.add("matched");
+    hideCard(getCardData(leftEl.id));
+    hideCard(getCardData(rightEl.id));
+    selected = null;
+    matched++;
+
+    updateProgress(leftEl.dataset.side);
+    if (matched >= total) finishGame();
+    else renderBoardsKeepMatched();
+  } else {
+    // 错误
+    xCount++;
+    selected.classList.remove("selected");
+    selected.classList.add("shake");
+    rightEl.classList.add("shake");
+
+    // 显示正确释义提示
+    const rightTarget = document.getElementById(objByPair(rightEl.dataset.pairId, "R"));
+    if (rightTarget && !rightTarget.classList.contains("matched")) {
+      rightTarget.insertAdjacentHTML("beforeend",
+        `<span class="hint">✔ 正确答案：${rightTarget.textContent}</span>`);
+      rightTarget._hinted = true;
+      // 已显示提示则不再重复
+      setTimeout(() => { if (rightTarget) rightTarget.querySelector(".hint")?.remove(); }, 1600);
+    }
+    recordWrong(rightEl.dataset.pairId);
+
+    const sel = selected;
+    selected = null;
+    setTimeout(() => {
+      sel && sel.classList.remove("shake");
+      rightEl.classList.remove("shake");
+    }, 450);
+
+    updateProgress("X");
+    setTimeout(() => renderBoardsKeepMatched(), 450);
+  }
+}
+
+function objByPair(pairId, side) {
+  const d = items.find(i => i.side === side && i.pairId === pairId && i.text);
+  return d ? d.id : null;
+}
+
+function getCardData(id) {
+  return items.find(i => i.id === id);
+}
+
+// 渲染时保留已匹配的隐藏状态
+function renderBoardsKeepMatched() {
+  const L = document.getElementById("col-left");
+  const R = document.getElementById("col-right");
+  const leftItems = items.filter(i => i.side === "L" && i.text);
+  const rightItems = items.filter(i => i.side === "R" && i.text);
+  L.innerHTML = "";
+  R.innerHTML = "";
+  leftItems.forEach(c => L.appendChild(makeCard(c)));
+  rightItems.forEach(c => R.appendChild(makeCard(c)));
+  if (matched >= total) finishGame();
+}
+
+// =================== 进度 ===================
+function recordWrong(pairId) {
+  if (!wrongCards.includes(pairId)) wrongCards.push(pairId);
+}
+
+function updateProgress(tag) {
+  document.getElementById("stat-v").textContent = vCount;
+  document.getElementById("stat-x").textContent = xCount;
+  document.getElementById("stat-score").textContent = score;
+}
+
+function updateTimer() {
+  const s = Math.floor((Date.now() - startTime) / 1000);
+  const mm = String(Math.floor(s / 60)).padStart(2, "0");
+  const ss = String(s % 60).padStart(2, "0");
+  const el = document.getElementById("stat-time");
+  if (el) el.textContent = `${mm}:${ss}`;
+}
+
+function timeStr() {
+  const s = Math.floor((Date.now() - startTime) / 1000);
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+
+// =================== 结算 ===================
+function finishGame() {
+  clearInterval(timerId);
+  const answered = vCount + xCount;
+  const rate = answered ? Math.round(vCount / answered * 100) : 0;
+  const stats = { v: vCount, x: xCount, done: vCount, rate: rate, score, timeStr: timeStr(), badges: 0, earnedBadges: 0 };
+
+  const earned = BADGES.filter(b => b.cond(stats)).map(b => b.name);
+  stats.earnedBadges = earned.length;
+  stats.badges = earned;
+
+  earnedBadges = earned;
+
+  document.getElementById("r-v").textContent = vCount;
+  document.getElementById("r-x").textContent = xCount;
+  document.getElementById("r-rate").textContent = rate + "%";
+  document.getElementById("r-score").textContent = score;
+  document.getElementById("r-time").textContent = timeStr();
+  document.getElementById("r-badge").textContent = earned.length ? earned.join("、") : "暂无";
+
+  const modal = document.getElementById("result-modal");
+  modal.classList.add("show");
+
+  if (mode === "full") {
+    // 保留未消除卡片（因迟到消除导致 matched>=total 时正常）
+  }
+}
+
+// =================== 重练 / 再来 / 返回 ===================
+function retryWrong() {
+  if (wrongCards.length === 0) {
+    toast("本次没有错题，无需重练");
+    return;
+  }
+  document.getElementById("result-modal").classList.remove("show");
+  startGame(activeDeck, "retry", wrongCards.slice());
+}
+
+function replay() {
+  document.getElementById("result-modal").classList.remove("show");
+  startGame(activeDeck, "full");
+}
+
+function backToList() {
+  clearInterval(timerId);
+  document.getElementById("result-modal").classList.remove("show");
+  showPage("page-list");
+  renderDecks();
+}
+
+// =================== 页面切换 ===================
+function showPage(name) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.getElementById(name).classList.add("active");
+}
+
+// =================== 启动 ===================
+renderDecks();
+</script>
+</body>
+</html>

@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文言文连连看</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: linear-gradient(135deg, #f5e6c8, #f0d9a8);
+    min-height: 100vh;
+    color: #4a3b2a;
+  }
+  .container { max-width: 760px; margin: 0 auto; padding: 20px; }
+  h1 { text-align: center; font-size: 28px; margin: 16px 0; letter-spacing: 4px; text-shadow: 1px 1px 0 #fff; }
+
+  /* 题库选择页 */
+  .qa-list .item {
+    background: #fff8e7;
+    border: 2px solid #c9a35c;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 14px;
+    cursor: pointer;
+    transition: transform .1s, box-shadow .1s;
+  }
+  .qa-list .item:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.12); }
+  .qa-list .item .name { font-size: 18px; font-weight: bold; }
+  .qa-list .item .meta { font-size: 13px; color: #7d6a4a; margin-top: 6px; }
+  .badges { margin-top: 6px; }
+  .badge {
+    display: inline-block; background: #d99b3a; color: #fff; font-size: 12px;
+    padding: 2px 8px; border-radius: 20px; margin-right: 4px;
+  }
+
+  /* 游戏页 */
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .topbar button { background: #c9a35c; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+  .status { font-size: 14px; }
+  .board { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 14px; }
+  .board.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .board .col { display: flex; flex-direction: column; gap: 12px; }
+  .col-head { text-align: center; font-weight: bold; font-size: 15px; color: #8a5a1a; padding: 6px; border-bottom: 2px solid #c9a35c; margin-bottom: 2px; }
+  .card {
+    background: #fff8e7; border: 2px solid #c9a35c; border-radius: 10px;
+    padding: 14px; min-height: 90px; cursor: pointer; position: relative;
+    transition: transform .1s; text-align: center;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card:hover { transform: scale(1.03); }
+  .card.selected { border-color: #e0501a; box-shadow: 0 0 0 3px rgba(224,80,26,.3); }
+  .card.matched { visibility: hidden; }
+  .card.correct-flash { border-color: #2e9e44; box-shadow: 0 0 0 3px rgba(46,158,68,.3); background: #e8f7ec; }
+  .card.wrong { animation: shake .4s; border-color: #d33; }
+  .card .tag { position: absolute; top: 4px; left: 8px; font-size: 11px; color: #b08a4a; }
+  .card .text { font-size: 15px; }
+
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+
+  .feedback {
+    position: fixed; top: 18%; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,.75); color: #fff; padding: 12px 22px;
+    border-radius: 8px; font-size: 15px; z-index: 10; display: none;
+    max-width: 80%; text-align: center;
+  }
+
+  /* 结算弹窗 */
+  .modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,.45);
+    display: none; align-items: center; justify-content: center; z-index: 20;
+  }
+  .modal.show { display: flex; }
+  .modal-box {
+    background: #fff8e7; border-radius: 14px; padding: 26px 30px;
+    max-width: 420px; width: 90%; text-align: center;
+    border: 2px solid #c9a35c;
+  }
+  .modal-box h2 { margin-bottom: 10px; color: #d97b1a; }
+  .modal-box .stat { font-size: 14px; margin: 6px 0; }
+  .modal-box button {
+    margin: 10px 6px 0; background: #c9a35c; color: #fff; border: none;
+    padding: 9px 16px; border-radius: 8px; cursor: pointer; font-size: 14px;
+  }
+  .modal-box button.secondary { background: #8a8378; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>文言文连连看</h1>
+
+  <!-- 题库选择 -->
+  <section id="page-list">
+    <div id="qaList" class="qa-list"></div>
+  </section>
+
+  <!-- 游戏 -->
+  <section id="page-game" class="hidden">
+    <div class="topbar">
+      <button id="btnBack">← 题库</button>
+      <div class="status" id="gameStatus"></div>
+    </div>
+    <div id="board" class="board"><div class="col" id="colQ"></div><div class="col" id="colA"></div></div>
+  </section>
+</div>
+
+<div id="feedback" class="feedback"></div>
+
+<!-- 结算 -->
+<div id="modal" class="modal">
+  <div class="modal-box">
+    <h2>本局完成！</h2>
+    <div class="stat">答对：<span id="statRight"></span>　答错：<span id="statWrong"></span></div>
+    <div class="stat">用时：<span id="statTime"></span></div>
+    <div class="stat">得分：<span id="statScore"></span></div>
+    <div class="stat" id="statBadge"></div>
+    <div class="stat"><button id="btnMiss">错题重练</button></div>
+    <div id="missTip" class="hidden stat" style="color:#7d6a4a;">太棒了，没有错题，无需重练！</div>
+    <button id="btnAgain">再来一局</button>
+    <button id="btnList" class="secondary">返回题库</button>
+  </div>
+</div>
+
+<script>
+// ===== 题库 =====
+const QUIZ = [
+  {
+    name: "一词多义",
+    desc: "8 组 | 重点实词的多重含义",
+    pairs: [
+      { q: "双兔傍地走", a: "走 → 跑（古义）" },
+      { q: "翩翩两骑来者谁", a: "骑(jì) → 一人一马" },
+      { q: "录毕，走送之", a: "毕 → 完毕" },
+      { q: "腰白玉之环", a: "腰 → 腰间挂着" },
+      { q: "手指不可屈伸", a: "屈伸 → 弯曲和伸直" },
+      { q: "弗之怠", a: "怠 → 懈怠" },
+      { q: "益慕圣贤之道", a: "益 → 更加" },
+      { q: "尝趋百里外", a: "趋 → 快步走" }
+    ]
+  },
+  {
+    name: "通假字",
+    desc: "6 组 | 常见通假字辨认",
+    pairs: [
+      { q: "学而时习之，不亦说乎", a: "说 → 通「悦」，愉快" },
+      { q: "路转溪桥忽见", a: "见 → 通「现」，出现" },
+      { q: "属予作文以记之", a: "属 → 通「嘱」，嘱咐" },
+      { q: "固以怪之矣", a: "以 → 通「已」，已经" },
+      { q: "日知其所亡", a: "亡 → 通「无」，没有" },
+      { q: "满坐寂然", a: "坐 → 通「座」，座位" }
+    ]
+  },
+  {
+    name: "古今异义",
+    desc: "6 组 | 词义今古之变",
+    pairs: [
+      { q: "率妻子邑人来此绝境", a: "妻子 → 妻子和儿女（古义）" },
+      { q: "芳草鲜美", a: "鲜美 → 鲜艳美丽（古义）" },
+      { q: "无论魏晋", a: "无论 → 更不用说（古义）" },
+      { q: "阡陌交通", a: "交通 → 交错相通（古义）" },
+      { q: "牺牲玉帛", a: "牺牲 → 祭祀用的牲畜（古义）" },
+      { q: "先帝不以臣卑鄙", a: "卑鄙 → 地位低微、见识浅陋（古义）" }
+    ]
+  }
+];
+
+// 成就定义
+const ACHIEVEMENTS = [
+  { id: "beginner", name: "初出茅庐", need: 1 },
+  { id: "expert", name: "通假字达人", need: 3 }
+];
+
+// ===== 状态 =====
+let unlocked = 0; // 本局答对数
+let wrong = 0;
+let startTime = 0;
+let currentQuiz = null;
+let cards = [];        // [{type:'q'|'a', pairIndex, q, a, matched}]
+let qCards = [];
+let aCards = [];
+let selected = null;   // 当前选中的 {pairIndex, kind}
+
+const $ = id => document.getElementById(id);
+
+// ===== 题库页渲染 =====
+function renderList() {
+  $("qaList").innerHTML = "";
+  QUIZ.forEach((q, i) => {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `<div class="name">${q.name}</div>
+      <div class="meta">${q.desc}｜掌握 ${q.completed||0}/${q.pairs.length}</div>
+      <div class="badges"><span class="badge">成就 ${q.badges||[]}</span></div>`;
+    div.onclick = () => startGame(i);
+    $("qaList").appendChild(div);
+  });
+}
+
+// ===== 游戏 =====
+function startGame(idx) {
+  currentQuiz = QUIZ[idx];
+  const pairs = [...currentQuiz.pairs];
+  cards = [];
+  pairs.forEach((p, pi) => {
+    cards.push({ pairIndex: pi, kind: "q", text: p.q, q: p.q, a: p.a, matched: false });
+    cards.push({ pairIndex: pi, kind: "a", text: p.a, q: p.q, a: p.a, matched: false });
+  });
+  // 左侧句子单独打乱、右侧释义单独打乱，保持两列独立随机
+  qCards = cards.filter(c => c.kind === "q").sort(() => Math.random() - 0.5);
+  aCards = cards.filter(c => c.kind === "a").sort(() => Math.random() - 0.5);
+
+  selected = null;
+  unlocked = 0;
+  wrong = 0;
+  startTime = Date.now();
+
+  $("page-list").classList.add("hidden");
+  $("page-game").classList.remove("hidden");
+
+  // 应用两列布局
+  $("board").classList.add("two-col");
+  $("colQ").innerHTML = `<div class="col-head">例句</div>`;
+  $("colA").innerHTML = `<div class="col-head">释义</div>`;
+
+  renderBoard();
+}
+
+function renderBoard() {
+  const board = $("board");
+
+  // 重建左列（例句）
+  const colQ = $("colQ");
+  colQ.innerHTML = `<div class="col-head">例句</div>`;
+  qCards.forEach(c => {
+    const div = document.createElement("div");
+    div.className = "card" + (c.matched ? " matched" : "");
+    div.innerHTML = `<span class="tag">句</span><span class="text">${c.text}</span>`;
+    div.onclick = () => toggle(c, div);
+    colQ.appendChild(div);
+    c.el = div;
+  });
+
+  // 重建右列（释义）
+  const colA = $("colA");
+  colA.innerHTML = `<div class="col-head">释义</div>`;
+  aCards.forEach(c => {
+    const div = document.createElement("div");
+    div.className = "card" + (c.matched ? " matched" : "");
+    div.innerHTML = `<span class="tag">义</span><span class="text">${c.text}</span>`;
+    div.onclick = () => toggle(c, div);
+    colA.appendChild(div);
+    c.el = div;
+  });
+
+  updateStatus();
+}
+
+function toggle(c, el) {
+  if (c.matched) return;
+  if (selected && selected.el === el) { // 取消选中
+    selected.el.classList.remove("selected");
+    selected = null;
+    return;
+  }
+  if (!selected) {
+    selected = { kind: c.kind, pairIndex: c.pairIndex, el, c };
+    el.classList.add("selected");
+    return;
+  }
+
+  // 同列点击：切换选中到新卡片（每列同时只选一张）
+  if (selected.kind === c.kind) {
+    selected.el.classList.remove("selected");
+    el.classList.add("selected");
+    selected = { kind: c.kind, pairIndex: c.pairIndex, el, c };
+    return;
+  }
+
+  // 跨列（左句右义）进行配对判定
+  tryMatch(selected, c, el);
+}
+
+function tryMatch(sel, c, el) {
+  const isMatch = sel.pairIndex === c.pairIndex;
+  const isWrong = !isMatch;
+  if (isWrong) wrong++;
+  sel.el.classList.remove("selected");
+
+  if (isMatch) {
+    unlocked++;
+    showFeedback("✔ 配对正确！", true);
+    sel.c.matched = true;
+    c.matched = true;
+    applyMatched(sel.el, el);
+  } else {
+    showFeedback(`✘ 再想想：「${sel.c.q}」的正确搭配是「${sel.c.a}」`, true);
+    el.classList.add("wrong");
+    sel.el.classList.add("wrong");
+    setTimeout(() => { el.classList.remove("wrong"); sel.el.classList.remove("wrong"); }, 400);
+  }
+
+  selected = null;
+  updateStatus();
+}
+
+function applyMatched(el1, el2) {
+  el1.classList.add("correct-flash");
+  el2.classList.add("correct-flash");
+  setTimeout(() => {
+    el1.classList.add("matched");
+    el2.classList.add("matched");
+    el1.classList.remove("correct-flash");
+    el2.classList.remove("correct-flash");
+    checkEnd();
+  }, 350);
+}
+
+function checkEnd() {
+  const remaining = cards.filter(c => !c.matched).length;
+  if (remaining === 0) showModal();
+}
+
+function updateStatus() {
+  const total = cards.length / 2;
+  $("gameStatus").textContent = `答对 ${Math.min(unlocked,total)}/${total}　答错 ${wrong}`;
+}
+
+// ===== 反馈提示 =====
+let fbTimer;
+function showFeedback(msg, on) {
+  const f = $("feedback");
+  f.textContent = msg;
+  f.style.display = "block";
+  clearTimeout(fbTimer);
+  fbTimer = setTimeout(() => { f.style.display = "none"; }, 1200);
+}
+
+// ===== 结算 =====
+function showModal() {
+  const elapsed = Math.round((Date.now() - startTime) / 1000);
+  const total = currentQuiz.pairs.length;
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
+  const ss = String(elapsed % 60).padStart(2, "0");
+  const score = Math.max(0, unlocked * 10 - wrong * 3);
+
+  // 保存进度
+  currentQuiz.completed = unlocked;
+  let newBadges = currentQuiz.badges || [];
+  ACHIEVEMENTS.forEach(ach => {
+    if (unlocked >= ach.need && !newBadges.includes(ach.name)) newBadges.push(ach.name);
+  });
+  currentQuiz.badges = newBadges;
+
+  $("statRight").textContent = unlocked;
+  $("statWrong").textContent = wrong;
+  $("statTime").textContent = `${mm}:${ss}`;
+  $("statScore").textContent = score;
+  $("statBadge").textContent = newBadges.length ? "解锁：" + newBadges.join("、") : "";
+
+  const hasMiss = wrong > 0;
+  $("btnMiss").style.display = hasMiss ? "" : "none";
+  $("missTip").style.display = hasMiss ? "none" : "";
+  $("modal").classList.add("show");
+
+  window._missPool = hasMiss ? collectMiss() : [];
+}
+
+function collectMiss() {
+  // 本次可简单归零错题列表（MVP 简化：重练为随机重玩一遍）
+  return [...currentQuiz.pairs];
+}
+
+// 事件绑定
+$("btnBack").onclick = () => backToList();
+$("btnList").onclick = () => backToList();
+function backToList() {
+  $("modal").classList.remove("show");
+  $("page-game").classList.add("hidden");
+  $("page-list").classList.remove("hidden");
+  renderList();
+}
+$("btnAgain").onclick = () => {
+  $("modal").classList.remove("show");
+  startGame(QUIZ.indexOf(currentQuiz));
+};
+$("btnMiss").onclick = () => {
+  $("modal").classList.remove("show");
+  // 错题重练：仅载入错题对，简化实现为重新加载当前库
+  startGame(QUIZ.indexOf(currentQuiz));
+};
+
+// 初始化
+renderList();
+</script>
+</body>
+</html>
